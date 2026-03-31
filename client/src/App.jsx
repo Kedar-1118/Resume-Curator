@@ -8,6 +8,7 @@ import Dashboard from '@/pages/Dashboard';
 import Builder from '@/pages/Builder';
 import Analyze from '@/pages/Analyze';
 import Updater from '@/pages/Updater';
+import ATSChecker from '@/pages/ATSChecker';
 
 // Protected route wrapper — redirects to home if not authenticated
 function ProtectedRoute({ children }) {
@@ -72,6 +73,16 @@ function App() {
           element={
             <ProtectedRoute>
               <Updater />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ats-checker"
+          element={
+            <ProtectedRoute>
+              <ErrorBoundary>
+                <ATSChecker />
+              </ErrorBoundary>
             </ProtectedRoute>
           }
         />

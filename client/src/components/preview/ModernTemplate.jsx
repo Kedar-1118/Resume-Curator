@@ -1,5 +1,5 @@
 export default function ModernTemplate({ resume }) {
-  const { personal, summary, experience, education, skills, certifications } = resume;
+  const { personal, summary, experience, education, projects, skills, certifications } = resume;
 
   const hasContent = (section) => {
     if (Array.isArray(section)) return section.length > 0;
@@ -127,16 +127,68 @@ export default function ModernTemplate({ resume }) {
         </div>
       )}
 
+      {/* Projects */}
+      {hasContent(projects) && (
+        <div style={{ marginBottom: '16px' }}>
+          <div style={sectionHeadingStyle}>Projects</div>
+
+          {projects.map((proj, i) => (
+            <div key={i} style={{ marginBottom: '12px', pageBreakInside: 'avoid' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span style={{ fontWeight: 700, fontSize: '12px' }}>{proj.name}</span>
+                {proj.technologies && (
+                  <span style={{ fontSize: '10px', color: '#666', flexShrink: 0, marginLeft: '8px' }}>
+                    {proj.technologies}
+                  </span>
+                )}
+              </div>
+              {proj.description && (
+                <div style={{ fontSize: '11px', color: '#555', marginTop: '1px' }}>
+                  {proj.description}
+                  {proj.link && <span> • {proj.link}</span>}
+                </div>
+              )}
+              {proj.bullets?.filter(Boolean).length > 0 && (
+                <div style={{ marginTop: '4px' }}>
+                  {proj.bullets.filter(Boolean).map((bullet, bi) => (
+                    <div key={bi} style={{
+                      marginLeft: '14px',
+                      fontSize: '11px',
+                      lineHeight: '1.5',
+                      color: '#222',
+                      marginBottom: '2px',
+                    }}>
+                      • {bullet}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Skills */}
       {hasContent(skills) && (
         <div style={{ marginBottom: '16px' }}>
           <div style={sectionHeadingStyle}>Skills</div>
           <div style={{
-            fontSize: '11px',
-            color: '#222',
-            lineHeight: '1.6',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '5px',
           }}>
-            {skills.join('  •  ')}
+            {skills.map((skill, i) => (
+              <span key={i} style={{
+                fontSize: '10px',
+                color: '#222',
+                backgroundColor: '#f1f1f1',
+                padding: '2px 8px',
+                borderRadius: '3px',
+                lineHeight: '1.6',
+              }}>
+                {skill}
+              </span>
+            ))}
           </div>
         </div>
       )}

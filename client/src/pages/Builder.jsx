@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import useResumeStore from '@/store/resumeStore';
-import { getResume, updateResume, getMe } from '@/lib/api';
+import { getResume, updateResume, getMe, parseResumeFile } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import Experience from '@/components/form/Experience';
 import Education from '@/components/form/Education';
 import Skills from '@/components/form/Skills';
 import Certifications from '@/components/form/Certifications';
+import Projects from '@/components/form/Projects';
 
 export default function Builder() {
   const { id } = useParams();
@@ -21,8 +22,12 @@ export default function Builder() {
   const [loading, setLoading] = useState(true);
   const [previewScale, setPreviewScale] = useState(1);
   const [mobileView, setMobileView] = useState('form'); // 'form' | 'preview'
+  const [uploading, setUploading] = useState(false);
+  const [showUploadConfirm, setShowUploadConfirm] = useState(false);
+  const [pendingFile, setPendingFile] = useState(null);
   const previewContainerRef = useRef(null);
   const saveTimerRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const resume = useResumeStore((s) => s.resume);
   const activeTab = useResumeStore((s) => s.activeTab);
@@ -105,6 +110,53 @@ export default function Builder() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isDirty, save]);
 
+  // ── Resume upload auto-populate ────────────────────────────
+  const hasFormData = () => {
+    const p = resume.personal || {};
+    return (
+      p.name || p.email || p.phone ||
+      resume.summary ||
+      resume.experience?.length > 0 ||
+      resume.education?.length > 0 ||
+      resume.skills?.length > 0
+    );
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset input so same file can be re-selected
+    e.target.value = '';
+
+    if (hasFormData()) {
+      setPendingFile(file);
+      setShowUploadConfirm(true);
+    } else {
+      processUploadedFile(file);
+    }
+  };
+
+  const processUploadedFile = async (file) => {
+    setShowUploadConfirm(false);
+    setUploading(true);
+    try {
+      const parsed = await parseResumeFile(file);
+      // Keep the current resume's _id, userId, and template — overwrite content fields
+      setResume({
+        ...parsed,
+        _id: resume._id,
+        userId: resume.userId,
+        template: resume.template || 'modern',
+      });
+      toast.success('Resume parsed! Fields have been auto-populated.');
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Failed to parse resume file');
+    } finally {
+      setUploading(false);
+      setPendingFile(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950">
@@ -121,6 +173,7 @@ export default function Builder() {
     { key: 'summary', label: 'Summary' },
     { key: 'experience', label: 'Experience' },
     { key: 'education', label: 'Education' },
+    { key: 'projects', label: 'Projects' },
     { key: 'skills', label: 'Skills' },
     { key: 'certifications', label: 'Certs' },
   ];
@@ -170,6 +223,34 @@ export default function Builder() {
             className="text-xs text-slate-400 hover:text-white h-8 cursor-pointer"
           >
             💾 Save
+          </Button>
+
+          {/* Upload Resume Button */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="text-xs text-slate-400 hover:text-white h-8 cursor-pointer"
+            title="Upload PDF/DOCX to auto-fill fields"
+          >
+            {uploading ? (
+              <span className="flex items-center gap-1.5">
+                <span className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full" />
+                <span className="hidden sm:inline">Parsing...</span>
+              </span>
+            ) : (
+              <>
+                📄 <span className="hidden sm:inline">Upload Resume</span>
+              </>
+            )}
           </Button>
 
           <div className="h-5 w-px bg-white/15 hidden sm:block" />
@@ -250,6 +331,9 @@ export default function Builder() {
               <TabsContent value="education" className="mt-0">
                 <Education />
               </TabsContent>
+              <TabsContent value="projects" className="mt-0">
+                <Projects />
+              </TabsContent>
               <TabsContent value="skills" className="mt-0">
                 <Skills />
               </TabsContent>
@@ -306,6 +390,38 @@ export default function Builder() {
           </div>
         </div>
       </div>
+
+      {/* Upload Confirmation Modal */}
+      {showUploadConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => { setShowUploadConfirm(false); setPendingFile(null); }}
+          />
+          <div className="relative bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl shadow-black/50 animate-in zoom-in-95 fade-in duration-200">
+            <div className="text-3xl mb-3">⚠️</div>
+            <h3 className="text-base font-semibold text-white mb-1">Overwrite Form Data?</h3>
+            <p className="text-sm text-slate-400 mb-5">
+              This will replace all current form fields with data extracted from the uploaded resume. This action cannot be undone.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => { setShowUploadConfirm(false); setPendingFile(null); }}
+                className="text-slate-400 hover:text-white text-sm cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => processUploadedFile(pendingFile)}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 text-sm cursor-pointer"
+              >
+                Overwrite & Populate
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

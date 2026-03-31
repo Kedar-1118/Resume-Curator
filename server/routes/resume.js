@@ -1,11 +1,94 @@
 const express = require('express');
+const multer = require('multer');
 const Resume = require('../models/Resume');
 const authMiddleware = require('../middleware/auth');
+const { extractText } = require('../services/fileParser');
+const { callGemini } = require('../services/gemini');
 
 const router = express.Router();
 
+// Multer config — store in memory, max 10MB, PDF/DOCX only
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+    ];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF and DOCX files are supported'));
+    }
+  },
+});
+
 // All routes are protected
 router.use(authMiddleware);
+
+// ═══════════════════════════════════════════════════════════════
+// POST /api/resume/upload — Upload PDF/DOCX → parse → create resume
+// ═══════════════════════════════════════════════════════════════
+router.post('/upload', upload.single('resume'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded. Please select a PDF or DOCX file.' });
+    }
+
+    // 1. Extract raw text from file
+    const rawText = await extractText(req.file.buffer, req.file.mimetype);
+
+    if (!rawText || rawText.length < 50) {
+      return res.status(400).json({ error: 'Could not extract enough text from the file. Please ensure it is a valid resume.' });
+    }
+
+    // 2. Use Gemini to parse raw text into structured resume JSON
+    const systemPrompt = `You are an expert resume parser. Extract all information from this raw resume text into a structured JSON format. Be thorough — extract every detail including all bullet points, dates, and contact information. If a field is not found, use an empty string or empty array. Return ONLY valid JSON, no markdown, no explanation:
+{
+  "title": "string (create a short title like 'Software Engineer Resume')",
+  "personal": {
+    "name": "string", "email": "string", "phone": "string",
+    "location": "string", "linkedin": "string", "github": "string", "website": "string"
+  },
+  "summary": "string (the professional summary/objective if present)",
+  "experience": [{
+    "title": "string", "company": "string", "location": "string",
+    "startDate": "string", "endDate": "string", "current": false,
+    "bullets": ["string"]
+  }],
+  "education": [{
+    "degree": "string", "school": "string", "location": "string",
+    "year": "string", "gpa": "string"
+  }],
+  "projects": [{
+    "name": "string", "description": "string", "technologies": "string",
+    "link": "string", "bullets": ["string"]
+  }],
+  "skills": ["string"],
+  "certifications": ["string"]
+}`;
+
+    const parsed = await callGemini(systemPrompt, `RAW RESUME TEXT:\n${rawText}`);
+
+    // 3. Create resume in DB with parsed data
+    const resume = await Resume.create({
+      ...parsed,
+      title: parsed.title || 'Uploaded Resume',
+      template: 'modern',
+      userId: req.user.id,
+    });
+
+    res.status(201).json(resume);
+  } catch (err) {
+    console.error('Resume upload error:', err.message);
+    if (err.message?.includes('Only PDF and DOCX')) {
+      return res.status(400).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message || 'Failed to parse resume' });
+  }
+});
 
 // GET /api/resume — Get all resumes for current user
 router.get('/', async (req, res) => {

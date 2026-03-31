@@ -257,6 +257,75 @@ async function generateDOCX(resumeData) {
     });
   }
 
+  // ─── Projects ─────────────────────────────────────────────
+  if (r.projects?.length) {
+    sections.push(sectionHeading('Projects'));
+
+    r.projects.forEach((proj) => {
+      // Project name + technologies
+      sections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: proj.name || '',
+              bold: true,
+              size: 22,
+              font: 'Georgia',
+            }),
+            ...(proj.technologies ? [
+              new TextRun({ text: '\t' }),
+              new TextRun({
+                text: proj.technologies,
+                size: 22,
+                font: 'Georgia',
+                color: '555555',
+              }),
+            ] : []),
+          ],
+          tabStops: [{ type: TabStopType.RIGHT, position: RIGHT_TAB }],
+          spacing: { before: 40, after: 20 },
+        })
+      );
+
+      // Description + link
+      const desc = [proj.description, proj.link].filter(Boolean).join(' | ');
+      if (desc) {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: desc,
+                italics: true,
+                size: 22,
+                font: 'Georgia',
+                color: '444444',
+              }),
+            ],
+            spacing: { after: 40 },
+          })
+        );
+      }
+
+      // Bullets
+      const bullets = (proj.bullets || []).filter(Boolean);
+      bullets.forEach((bullet) => {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: bullet,
+                size: 22,
+                font: 'Georgia',
+              }),
+            ],
+            numbering: { reference: 'bullet-list', level: 0 },
+            spacing: { after: 20 },
+          })
+        );
+      });
+    });
+  }
+
   // ─── Skills ───────────────────────────────────────────────
   if (r.skills?.length) {
     sections.push(sectionHeading('Skills'));

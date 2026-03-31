@@ -114,6 +114,20 @@ export default function Navbar() {
               ✨ Improve Resume
             </Button>
           </Link>
+
+          <Link to="/ats-checker">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`text-xs h-8 cursor-pointer transition-colors ${
+                isActive('/ats-checker')
+                  ? 'text-white bg-white/10'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              📊 ATS Checker
+            </Button>
+          </Link>
         </div>
       </div>
 

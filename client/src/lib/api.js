@@ -24,6 +24,27 @@ export const rewriteBullet = (data) => API.post('/ai/rewrite', data).then((res) 
 export const generateSummary = (data) => API.post('/ai/summary', data).then((res) => res.data);
 export const improveResume = (data) => API.post('/ai/improve', data).then((res) => res.data);
 
+// ─── Resume Parsing (file upload) ────────────────────────────
+export const parseResumeFile = (file) => {
+  const formData = new FormData();
+  formData.append('resume', file);
+  return API.post('/ai/parse-resume', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((res) => res.data);
+};
+
+// ─── Standalone ATS Score (file upload + optional JD) ────────
+export const scoreUploadedResume = (file, jobDescription) => {
+  const formData = new FormData();
+  formData.append('resume', file);
+  if (jobDescription?.trim()) {
+    formData.append('jobDescription', jobDescription.trim());
+  }
+  return API.post('/ai/score-upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((res) => res.data);
+};
+
 // ─── Export ──────────────────────────────────────────────────
 export const exportPDF = (data) => API.post('/export/pdf', data, { responseType: 'blob' });
 export const exportDOCX = (data) => API.post('/export/docx', data, { responseType: 'blob' });

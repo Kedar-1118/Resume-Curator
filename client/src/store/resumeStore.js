@@ -15,6 +15,7 @@ const defaultResume = {
   summary: '',
   experience: [],
   education: [],
+  projects: [],
   skills: [],
   certifications: [],
   targetJD: '',
@@ -175,6 +176,76 @@ const useResumeStore = create((set, get) => ({
       education[index] = { ...education[index], [field]: value };
       return {
         resume: { ...state.resume, education },
+        isDirty: true,
+      };
+    }),
+
+  // Project actions
+  addProject: () =>
+    set((state) => ({
+      resume: {
+        ...state.resume,
+        projects: [
+          ...state.resume.projects,
+          { name: '', description: '', technologies: '', link: '', bullets: [''] },
+        ],
+      },
+      isDirty: true,
+    })),
+
+  removeProject: (index) =>
+    set((state) => ({
+      resume: {
+        ...state.resume,
+        projects: state.resume.projects.filter((_, i) => i !== index),
+      },
+      isDirty: true,
+    })),
+
+  updateProject: (index, field, value) =>
+    set((state) => {
+      const projects = [...state.resume.projects];
+      projects[index] = { ...projects[index], [field]: value };
+      return {
+        resume: { ...state.resume, projects },
+        isDirty: true,
+      };
+    }),
+
+  addProjectBullet: (projIndex) =>
+    set((state) => {
+      const projects = [...state.resume.projects];
+      projects[projIndex] = {
+        ...projects[projIndex],
+        bullets: [...projects[projIndex].bullets, ''],
+      };
+      return {
+        resume: { ...state.resume, projects },
+        isDirty: true,
+      };
+    }),
+
+  removeProjectBullet: (projIndex, bulletIndex) =>
+    set((state) => {
+      const projects = [...state.resume.projects];
+      projects[projIndex] = {
+        ...projects[projIndex],
+        bullets: projects[projIndex].bullets.filter((_, i) => i !== bulletIndex),
+      };
+      return {
+        resume: { ...state.resume, projects },
+        isDirty: true,
+      };
+    }),
+
+  updateProjectBullet: (projIndex, bulletIndex, value) =>
+    set((state) => {
+      const projects = [...state.resume.projects];
+      const bullets = [...projects[projIndex].bullets];
+      bullets[bulletIndex] = value;
+      projects[projIndex] = { ...projects[projIndex], bullets };
+      return {
+        resume: { ...state.resume, projects },
         isDirty: true,
       };
     }),

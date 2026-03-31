@@ -45,6 +45,15 @@ const resumeSchema = new mongoose.Schema(
         gpa: { type: String, default: '' },
       },
     ],
+    projects: [
+      {
+        name: { type: String, default: '' },
+        description: { type: String, default: '' },
+        technologies: { type: String, default: '' },
+        link: { type: String, default: '' },
+        bullets: [{ type: String }],
+      },
+    ],
     skills: [{ type: String }],
     certifications: [{ type: String }],
     targetJD: {

@@ -321,6 +321,13 @@ export default function Dashboard() {
               ✨ Improve Existing Resume
             </Button>
             <Button
+              onClick={() => navigate('/ats-checker')}
+              variant="outline"
+              className="border-white/15 text-slate-300 hover:text-white hover:border-white/30 bg-transparent text-sm cursor-pointer"
+            >
+              📊 ATS Score Checker
+            </Button>
+            <Button
               onClick={() => setShowCreateModal(true)}
               className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 cursor-pointer shadow-lg shadow-indigo-500/20"
             >

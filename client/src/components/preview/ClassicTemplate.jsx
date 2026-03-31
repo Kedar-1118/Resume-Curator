@@ -1,5 +1,5 @@
 export default function ClassicTemplate({ resume }) {
-  const { personal, summary, experience, education, skills, certifications } = resume;
+  const { personal, summary, experience, education, projects, skills, certifications } = resume;
 
   const hasContent = (section) => {
     if (Array.isArray(section)) return section.length > 0;
@@ -153,6 +153,57 @@ export default function ClassicTemplate({ resume }) {
         </div>
       )}
 
+      {/* Projects */}
+      {hasContent(projects) && (
+        <div style={{ marginBottom: '14px' }}>
+          <div style={{
+            textAlign: 'center',
+            fontSize: '13px',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '2px',
+            marginBottom: '4px',
+          }}>
+            Projects
+          </div>
+          <hr style={{ border: 'none', borderTop: '1px solid #bbb', margin: '0 0 8px 0' }} />
+
+          {projects.map((proj, i) => (
+            <div key={i} style={{ marginBottom: '10px', pageBreakInside: 'avoid' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span style={{ fontWeight: 700, fontSize: '11px' }}>{proj.name}</span>
+                {proj.technologies && (
+                  <span style={{ fontSize: '11px', color: '#555', flexShrink: 0, marginLeft: '8px' }}>
+                    {proj.technologies}
+                  </span>
+                )}
+              </div>
+              {proj.description && (
+                <div style={{ fontSize: '11px', fontStyle: 'italic', color: '#444', marginTop: '1px' }}>
+                  {proj.description}
+                  {proj.link && ` | ${proj.link}`}
+                </div>
+              )}
+              {proj.bullets?.filter(Boolean).length > 0 && (
+                <div style={{ marginTop: '4px' }}>
+                  {proj.bullets.filter(Boolean).map((bullet, bi) => (
+                    <div key={bi} style={{
+                      marginLeft: '16px',
+                      fontSize: '11px',
+                      lineHeight: '1.6',
+                      color: '#222',
+                      marginBottom: '2px',
+                    }}>
+                      — {bullet}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Skills */}
       {hasContent(skills) && (
         <div style={{ marginBottom: '14px' }}>
@@ -167,8 +218,24 @@ export default function ClassicTemplate({ resume }) {
             Skills
           </div>
           <hr style={{ border: 'none', borderTop: '1px solid #bbb', margin: '0 0 8px 0' }} />
-          <div style={{ fontSize: '11px', color: '#222', lineHeight: '1.6' }}>
-            {skills.join(', ')}
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '5px',
+            justifyContent: 'center',
+          }}>
+            {skills.map((skill, i) => (
+              <span key={i} style={{
+                fontSize: '10px',
+                color: '#222',
+                border: '1px solid #ccc',
+                padding: '2px 8px',
+                borderRadius: '3px',
+                lineHeight: '1.6',
+              }}>
+                {skill}
+              </span>
+            ))}
           </div>
         </div>
       )}

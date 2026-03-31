@@ -1,5 +1,5 @@
 export default function ProfessionalTemplate({ resume }) {
-  const { personal, summary, experience, education, skills, certifications } = resume;
+  const { personal, summary, experience, education, projects, skills, certifications } = resume;
 
   const hasContent = (section) => {
     if (Array.isArray(section)) return section.length > 0;
@@ -145,6 +145,47 @@ export default function ProfessionalTemplate({ resume }) {
               </div>
               {edu.gpa && (
                 <div style={{ fontSize: '10px', color: '#444' }}>GPA: {edu.gpa}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Projects */}
+      {hasContent(projects) && (
+        <div style={{ marginBottom: '10px' }}>
+          <div style={sectionHeadingStyle}>Projects</div>
+
+          {projects.map((proj, i) => (
+            <div key={i} style={{ marginBottom: '8px', pageBreakInside: 'avoid' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span style={{ fontWeight: 700, fontSize: '11px' }}>{proj.name}</span>
+                {proj.technologies && (
+                  <span style={{ fontSize: '10px', color: '#444', flexShrink: 0, marginLeft: '8px' }}>
+                    {proj.technologies}
+                  </span>
+                )}
+              </div>
+              {proj.description && (
+                <div style={{ fontSize: '10px', fontStyle: 'italic', color: '#333' }}>
+                  {proj.description}
+                  {proj.link && ` | ${proj.link}`}
+                </div>
+              )}
+              {proj.bullets?.filter(Boolean).length > 0 && (
+                <div style={{ marginTop: '3px' }}>
+                  {proj.bullets.filter(Boolean).map((bullet, bi) => (
+                    <div key={bi} style={{
+                      marginLeft: '12px',
+                      fontSize: '10px',
+                      lineHeight: '1.4',
+                      color: '#111',
+                      marginBottom: '1px',
+                    }}>
+                      › {bullet}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           ))}

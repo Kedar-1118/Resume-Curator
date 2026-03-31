@@ -20,7 +20,7 @@ router.post('/pdf', async (req, res) => {
     const resume = await Resume.findOne({ _id: resumeId, userId: req.user.id });
     if (!resume) return res.status(404).json({ error: 'Resume not found' });
 
-    const pdfBuffer = await generatePDF(resume.toObject(), template || resume.template || 'modern');
+    const pdfBuffer = Buffer.from(await generatePDF(resume.toObject(), template || resume.template || 'modern'));
 
     const filename = `${(resume.title || 'resume').replace(/[^a-zA-Z0-9\s-]/g, '').trim()}.pdf`;
 

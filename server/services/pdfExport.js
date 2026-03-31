@@ -139,11 +139,39 @@ function buildClassicHTML(r) {
     html += `</div>`;
   }
 
+  // Projects
+  if (has(r.projects)) {
+    html += `<div style="margin-bottom:14px;">${sectionHead('Projects')}`;
+    r.projects.forEach((proj) => {
+      html += `<div style="margin-bottom:10px;page-break-inside:avoid;">`;
+      html += `<div style="display:flex;justify-content:space-between;align-items:baseline;">
+        <span style="font-weight:700;font-size:11px;">${esc(proj.name)}</span>`;
+      if (proj.technologies) {
+        html += `<span style="font-size:11px;color:#555;flex-shrink:0;margin-left:8px;">${esc(proj.technologies)}</span>`;
+      }
+      html += `</div>`;
+      if (proj.description) {
+        html += `<div style="font-size:11px;font-style:italic;color:#444;margin-top:1px;">${esc(proj.description)}${proj.link ? ' | ' + esc(proj.link) : ''}</div>`;
+      }
+      const bullets = (proj.bullets || []).filter(Boolean);
+      if (bullets.length) {
+        html += `<div style="margin-top:4px;">`;
+        bullets.forEach((b) => {
+          html += `<div style="margin-left:16px;font-size:11px;line-height:1.6;color:#222;margin-bottom:2px;">\u2014 ${esc(b)}</div>`;
+        });
+        html += `</div>`;
+      }
+      html += `</div>`;
+    });
+    html += `</div>`;
+  }
+
   // Skills
   if (has(r.skills)) {
     html += `<div style="margin-bottom:14px;">${sectionHead('Skills')}
       <div style="font-size:11px;color:#222;line-height:1.6;">${r.skills.map(esc).join(', ')}</div></div>`;
   }
+
 
   // Certifications
   const certs = (r.certifications || []).filter(Boolean);
@@ -226,11 +254,39 @@ function buildModernHTML(r) {
     html += `</div>`;
   }
 
+  // Projects
+  if (has(r.projects)) {
+    html += `<div style="margin-bottom:16px;">${sectionHead('Projects')}`;
+    r.projects.forEach((proj) => {
+      html += `<div style="margin-bottom:12px;page-break-inside:avoid;">`;
+      html += `<div style="display:flex;justify-content:space-between;align-items:baseline;">
+        <span style="font-weight:700;font-size:12px;">${esc(proj.name)}</span>`;
+      if (proj.technologies) {
+        html += `<span style="font-size:10px;color:#666;flex-shrink:0;margin-left:8px;">${esc(proj.technologies)}</span>`;
+      }
+      html += `</div>`;
+      if (proj.description) {
+        html += `<div style="font-size:11px;color:#555;margin-top:1px;">${esc(proj.description)}${proj.link ? ' \u2022 ' + esc(proj.link) : ''}</div>`;
+      }
+      const bullets = (proj.bullets || []).filter(Boolean);
+      if (bullets.length) {
+        html += `<div style="margin-top:4px;">`;
+        bullets.forEach((b) => {
+          html += `<div style="margin-left:14px;font-size:11px;line-height:1.5;color:#222;margin-bottom:2px;">\u2022 ${esc(b)}</div>`;
+        });
+        html += `</div>`;
+      }
+      html += `</div>`;
+    });
+    html += `</div>`;
+  }
+
   // Skills
   if (has(r.skills)) {
     html += `<div style="margin-bottom:16px;">${sectionHead('Skills')}
       <div style="font-size:11px;color:#222;line-height:1.6;">${r.skills.map(esc).join('  \u2022  ')}</div></div>`;
   }
+
 
   // Certifications
   const certs = (r.certifications || []).filter(Boolean);
@@ -324,11 +380,39 @@ function buildProfessionalHTML(r) {
     html += `</div>`;
   }
 
+  // Projects
+  if (has(r.projects)) {
+    html += `<div style="margin-bottom:10px;">${sectionHead('Projects')}`;
+    r.projects.forEach((proj) => {
+      html += `<div style="margin-bottom:8px;page-break-inside:avoid;">`;
+      html += `<div style="display:flex;justify-content:space-between;align-items:baseline;">
+        <span style="font-weight:700;font-size:11px;">${esc(proj.name)}</span>`;
+      if (proj.technologies) {
+        html += `<span style="font-size:10px;color:#444;flex-shrink:0;margin-left:8px;">${esc(proj.technologies)}</span>`;
+      }
+      html += `</div>`;
+      if (proj.description) {
+        html += `<div style="font-size:10px;font-style:italic;color:#333;">${esc(proj.description)}${proj.link ? ' | ' + esc(proj.link) : ''}</div>`;
+      }
+      const bullets = (proj.bullets || []).filter(Boolean);
+      if (bullets.length) {
+        html += `<div style="margin-top:3px;">`;
+        bullets.forEach((b) => {
+          html += `<div style="margin-left:12px;font-size:10px;line-height:1.4;color:#111;margin-bottom:1px;">\u203A ${esc(b)}</div>`;
+        });
+        html += `</div>`;
+      }
+      html += `</div>`;
+    });
+    html += `</div>`;
+  }
+
   // Skills
   if (has(r.skills)) {
     html += `<div style="margin-bottom:10px;">${sectionHead('Skills')}
       <div style="font-size:10px;color:#111;line-height:1.4;">${r.skills.map(esc).join('  \u2022  ')}</div></div>`;
   }
+
 
   // Certifications
   const certs = (r.certifications || []).filter(Boolean);

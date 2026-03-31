@@ -1,7 +1,28 @@
 const express = require('express');
+const multer = require('multer');
 const authMiddleware = require('../middleware/auth');
 const Resume = require('../models/Resume');
-const { callClaude } = require('../services/claude');
+// const { callClaude } = require('../services/claude'); // kept for future use
+const { callGemini } = require('../services/gemini');
+const { extractText } = require('../services/fileParser');
+
+// Multer config — memory storage, max 10MB, PDF/DOCX only
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+    ];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF and DOCX files are supported'));
+    }
+  },
+});
 
 const router = express.Router();
 
@@ -41,6 +62,18 @@ function resumeToText(resume) {
     parts.push('\nEDUCATION:');
     resume.education.forEach((edu) => {
       parts.push(`${edu.degree} — ${edu.school} (${edu.location || ''}) ${edu.year || ''} ${edu.gpa ? 'GPA: ' + edu.gpa : ''}`);
+    });
+  }
+
+  if (resume.projects?.length) {
+    parts.push('\nPROJECTS:');
+    resume.projects.forEach((proj) => {
+      parts.push(`${proj.name}${proj.technologies ? ` [${proj.technologies}]` : ''}`);
+      if (proj.description) parts.push(`  ${proj.description}`);
+      if (proj.link) parts.push(`  Link: ${proj.link}`);
+      if (proj.bullets?.length) {
+        proj.bullets.filter(Boolean).forEach((b) => parts.push(`  • ${b}`));
+      }
     });
   }
 
@@ -85,7 +118,7 @@ router.post('/score', async (req, res) => {
 
     const userContent = `RESUME:\n${resumeToText(resume)}\n\nJOB DESCRIPTION:\n${resume.targetJD}`;
 
-    const result = await callClaude(systemPrompt, userContent);
+    const result = await callGemini(systemPrompt, userContent);
 
     // Update resume in DB with scores
     await Resume.findByIdAndUpdate(resumeId, {
@@ -131,7 +164,7 @@ router.post('/keywords', async (req, res) => {
 
     const userContent = `RESUME:\n${resumeToText(resume)}\n\nJOB DESCRIPTION:\n${resume.targetJD}`;
 
-    const result = await callClaude(systemPrompt, userContent);
+    const result = await callGemini(systemPrompt, userContent);
     res.json(result);
   } catch (err) {
     console.error('AI Keywords error:', err.message);
@@ -164,7 +197,7 @@ Return ONLY valid JSON, no markdown, no explanation:
       jobDescription ? `\n\nJOB DESCRIPTION:\n${jobDescription}` : ''
     }${role ? `\n\nROLE/TITLE: ${role}` : ''}`;
 
-    const result = await callClaude(systemPrompt, userContent);
+    const result = await callGemini(systemPrompt, userContent);
     res.json(result);
   } catch (err) {
     console.error('AI Rewrite error:', err.message);
@@ -199,7 +232,7 @@ Return ONLY valid JSON, no markdown, no explanation:
 
     const userContent = `RESUME:\n${resumeToText(resume)}\n\nJOB DESCRIPTION:\n${resume.targetJD}`;
 
-    const result = await callClaude(systemPrompt, userContent);
+    const result = await callGemini(systemPrompt, userContent);
 
     // Update summary in DB
     if (result.summary) {
@@ -245,17 +278,155 @@ Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
     "degree": "string", "school": "string", "location": "string",
     "year": "string", "gpa": "string"
   }],
+  "projects": [{
+    "name": "string", "description": "string", "technologies": "string",
+    "link": "string", "bullets": ["string"]
+  }],
   "skills": ["string"],
   "certifications": ["string"]
 }`;
 
     const userContent = `RAW RESUME TEXT:\n${resumeText}\n\nJOB DESCRIPTION:\n${jobDescription}`;
 
-    const result = await callClaude(systemPrompt, userContent);
+    const result = await callGemini(systemPrompt, userContent);
     res.json(result);
   } catch (err) {
     console.error('AI Improve error:', err.message);
     res.status(500).json({ error: err.message || 'Failed to improve resume' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// POST /api/ai/parse-resume — Upload PDF/DOCX → parse → return JSON
+// Used by Builder auto-populate (no DB save)
+// ═══════════════════════════════════════════════════════════════
+router.post('/parse-resume', upload.single('resume'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded. Please select a PDF or DOCX file.' });
+    }
+
+    // 1. Extract raw text from file
+    const rawText = await extractText(req.file.buffer, req.file.mimetype);
+
+    if (!rawText || rawText.length < 50) {
+      return res.status(400).json({ error: 'Could not extract enough text from the file. Please ensure it is a valid resume.' });
+    }
+
+    // 2. Use Gemini to parse raw text into structured resume JSON
+    const systemPrompt = `You are an expert resume parser. Extract all information from this raw resume text into a structured JSON format. Be thorough — extract every detail including all bullet points, dates, and contact information. If a field is not found, use an empty string or empty array. Return ONLY valid JSON, no markdown, no explanation:
+{
+  "title": "string (create a short title like 'Software Engineer Resume')",
+  "personal": {
+    "name": "string", "email": "string", "phone": "string",
+    "location": "string", "linkedin": "string", "github": "string", "website": "string"
+  },
+  "summary": "string (the professional summary/objective if present)",
+  "experience": [{
+    "title": "string", "company": "string", "location": "string",
+    "startDate": "string", "endDate": "string", "current": false,
+    "bullets": ["string"]
+  }],
+  "education": [{
+    "degree": "string", "school": "string", "location": "string",
+    "year": "string", "gpa": "string"
+  }],
+  "projects": [{
+    "name": "string", "description": "string", "technologies": "string",
+    "link": "string", "bullets": ["string"]
+  }],
+  "skills": ["string"],
+  "certifications": ["string"]
+}`;
+
+    const parsed = await callGemini(systemPrompt, `RAW RESUME TEXT:\n${rawText}`);
+
+    res.json(parsed);
+  } catch (err) {
+    console.error('AI Parse Resume error:', err.message);
+    if (err.message?.includes('Only PDF and DOCX')) {
+      return res.status(400).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message || 'Failed to parse resume' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// POST /api/ai/score-upload — Upload PDF/DOCX + optional JD → ATS score
+// Standalone ATS checker (no saved resume required)
+// ═══════════════════════════════════════════════════════════════
+router.post('/score-upload', upload.single('resume'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded. Please select a PDF or DOCX file.' });
+    }
+
+    // 1. Extract raw text from file
+    const rawText = await extractText(req.file.buffer, req.file.mimetype);
+
+    if (!rawText || rawText.length < 50) {
+      return res.status(400).json({ error: 'Could not extract enough text from the file. Please ensure it is a valid resume.' });
+    }
+
+    const jobDescription = req.body.jobDescription?.trim();
+    const isTargeted = !!jobDescription;
+
+    // 2. Build the appropriate prompt based on whether JD is provided
+    let systemPrompt;
+    let userContent;
+
+    if (isTargeted) {
+      // ── Targeted scoring: resume vs specific JD ──
+      systemPrompt = `You are an expert ATS (Applicant Tracking System) analyzer. Score the resume against the job description across 8 criteria. Each score is 0-100. Be specific in feedback — mention exact missing keywords, weak bullets by number, and concrete improvements. Return ONLY a valid JSON object, no markdown, no explanation, matching this exact schema:
+{
+  "totalScore": number,
+  "mode": "targeted",
+  "breakdown": {
+    "keywords": { "score": number, "feedback": "string" },
+    "actionVerbs": { "score": number, "feedback": "string" },
+    "quantification": { "score": number, "feedback": "string" },
+    "formatting": { "score": number, "feedback": "string" },
+    "sections": { "score": number, "feedback": "string" },
+    "contactInfo": { "score": number, "feedback": "string" },
+    "summaryRelevance": { "score": number, "feedback": "string" },
+    "readability": { "score": number, "feedback": "string" }
+  },
+  "topSuggestions": ["string"]
+}`;
+      userContent = `RESUME:\n${rawText}\n\nJOB DESCRIPTION:\n${jobDescription}`;
+    } else {
+      // ── General scoring: ATS best practices only ──
+      systemPrompt = `You are an expert ATS (Applicant Tracking System) analyzer. Score this resume on general ATS best practices — no specific job description is provided. Evaluate across 8 criteria based on universal ATS compatibility standards. Each score is 0-100. Be specific in feedback — mention concrete issues and improvements. Return ONLY a valid JSON object, no markdown, no explanation, matching this exact schema:
+{
+  "totalScore": number,
+  "mode": "general",
+  "breakdown": {
+    "keywords": { "score": number, "feedback": "Evaluate if resume uses strong industry-relevant keywords" },
+    "actionVerbs": { "score": number, "feedback": "Check if bullets start with strong action verbs" },
+    "quantification": { "score": number, "feedback": "Check if achievements are quantified with numbers/metrics" },
+    "formatting": { "score": number, "feedback": "Evaluate ATS-safe formatting: single column, no tables, no images" },
+    "sections": { "score": number, "feedback": "Check for standard section headings: Summary, Experience, Education, Skills" },
+    "contactInfo": { "score": number, "feedback": "Check completeness: name, email, phone, location, LinkedIn" },
+    "summaryRelevance": { "score": number, "feedback": "Evaluate if professional summary is compelling and well-written" },
+    "readability": { "score": number, "feedback": "Check overall length, clarity, and conciseness" }
+  },
+  "topSuggestions": ["string"]
+}`;
+      userContent = `RESUME:\n${rawText}`;
+    }
+
+    const result = await callGemini(systemPrompt, userContent);
+
+    // Add metadata to response
+    result.mode = isTargeted ? 'targeted' : 'general';
+
+    res.json(result);
+  } catch (err) {
+    console.error('AI Score Upload error:', err.message);
+    if (err.message?.includes('Only PDF and DOCX')) {
+      return res.status(400).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message || 'Failed to score resume' });
   }
 });
 

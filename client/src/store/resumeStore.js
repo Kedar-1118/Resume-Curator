@@ -21,7 +21,12 @@ const defaultResume = {
   targetJD: '',
   atsScore: null,
   atsBreakdown: null,
+  atsScores: [],
   template: 'modern',
+  parsedJD: null,
+  coverLetter: null,
+  jdTargets: [],
+  versions: [],
 };
 
 const useResumeStore = create((set, get) => ({
@@ -37,6 +42,11 @@ const useResumeStore = create((set, get) => ({
   // AI results
   atsResult: null,
   keywordResult: null,
+
+  // GitHub state (Feature 1)
+  githubConnected: false,
+  githubIngestionStatus: 'idle', // 'idle' | 'running' | 'done' | 'error'
+  generatedProjects: [],
 
   // ─── Actions ─────────────────────────────────────────────
 
@@ -275,6 +285,63 @@ const useResumeStore = create((set, get) => ({
       isDirty: false,
       atsResult: null,
       keywordResult: null,
+      generatedProjects: [],
+    }),
+
+  // ─── GitHub Actions (Feature 1) ────────────────────────────
+  setGithubStatus: (connected, ingestionStatus) =>
+    set({ githubConnected: connected, githubIngestionStatus: ingestionStatus || 'idle' }),
+
+  setGeneratedProjects: (projects) => set({ generatedProjects: projects }),
+
+  applyGeneratedProjects: (selected) =>
+    set((state) => {
+      const mapped = selected.map((p) => ({
+        name: p.name || '',
+        description: p.description || '',
+        technologies: (p.techStack || []).join(', '),
+        link: p.githubUrl || '',
+        bullets: p.highlights || [],
+      }));
+      return {
+        resume: {
+          ...state.resume,
+          projects: [...state.resume.projects, ...mapped],
+        },
+        isDirty: true,
+        generatedProjects: [],
+      };
+    }),
+
+  // ─── Cover Letter Actions (Feature 5) ──────────────────────
+  setCoverLetter: (coverLetter) =>
+    set((state) => ({
+      resume: { ...state.resume, coverLetter },
+      isDirty: true,
+    })),
+
+  // ─── JD Targets Actions (Feature 6) ────────────────────────
+  addJDTarget: (target) =>
+    set((state) => ({
+      resume: {
+        ...state.resume,
+        jdTargets: [...(state.resume.jdTargets || []), target],
+      },
+    })),
+
+  removeJDTarget: (index) =>
+    set((state) => ({
+      resume: {
+        ...state.resume,
+        jdTargets: (state.resume.jdTargets || []).filter((_, i) => i !== index),
+      },
+    })),
+
+  // ─── Version History Actions (Feature 4) ───────────────────
+  restoreVersion: (snapshot) =>
+    set({
+      resume: { ...defaultResume, ...snapshot },
+      isDirty: true,
     }),
 }));
 

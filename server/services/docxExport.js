@@ -391,4 +391,182 @@ async function generateDOCX(resumeData) {
   return await Packer.toBuffer(doc);
 }
 
-module.exports = { generateDOCX };
+/**
+ * Generate a cover letter DOCX buffer from cover letter JSON.
+ * Clean, professional format — no tables, standard margins.
+ */
+async function generateCoverLetterDOCX(coverLetter, personal = {}) {
+  const sections = [];
+
+  // ─── Candidate name + date ─────────────────────────────────
+  if (personal.name) {
+    sections.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: personal.name,
+            bold: true,
+            size: 28, // 14pt
+            font: 'Georgia',
+          }),
+        ],
+        spacing: { after: 40 },
+      })
+    );
+  }
+
+  // Contact info
+  const contactParts = [personal.email, personal.phone, personal.location].filter(Boolean);
+  if (contactParts.length) {
+    sections.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: contactParts.join(' | '),
+            size: 20,
+            font: 'Georgia',
+            color: '444444',
+          }),
+        ],
+        spacing: { after: 80 },
+      })
+    );
+  }
+
+  // Date
+  sections.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: new Date().toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          }),
+          size: 22,
+          font: 'Georgia',
+          color: '555555',
+        }),
+      ],
+      spacing: { after: 200 },
+    })
+  );
+
+  // ─── Subject line ──────────────────────────────────────────
+  if (coverLetter.subject) {
+    sections.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: coverLetter.subject,
+            bold: true,
+            size: 22,
+            font: 'Georgia',
+          }),
+        ],
+        spacing: { after: 200 },
+      })
+    );
+  }
+
+  // ─── Salutation ────────────────────────────────────────────
+  if (coverLetter.salutation) {
+    sections.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: coverLetter.salutation,
+            size: 22,
+            font: 'Georgia',
+          }),
+        ],
+        spacing: { after: 160 },
+      })
+    );
+  }
+
+  // ─── Opening paragraph ────────────────────────────────────
+  if (coverLetter.opening) {
+    sections.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: coverLetter.opening,
+            size: 22,
+            font: 'Georgia',
+          }),
+        ],
+        spacing: { after: 160 },
+      })
+    );
+  }
+
+  // ─── Body paragraphs ──────────────────────────────────────
+  if (coverLetter.bodyParagraphs?.length) {
+    coverLetter.bodyParagraphs.forEach((para) => {
+      sections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: para,
+              size: 22,
+              font: 'Georgia',
+            }),
+          ],
+          spacing: { after: 160 },
+        })
+      );
+    });
+  }
+
+  // ─── Closing ───────────────────────────────────────────────
+  if (coverLetter.closing) {
+    sections.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: coverLetter.closing,
+            size: 22,
+            font: 'Georgia',
+          }),
+        ],
+        spacing: { after: 200 },
+      })
+    );
+  }
+
+  // Signature
+  if (personal.name) {
+    sections.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: personal.name,
+            bold: true,
+            size: 22,
+            font: 'Georgia',
+          }),
+        ],
+        spacing: { before: 100 },
+      })
+    );
+  }
+
+  const doc = new Document({
+    sections: [
+      {
+        properties: {
+          page: {
+            size: { width: PAGE_WIDTH, height: 16838 },
+            margin: { top: MARGIN, right: MARGIN, bottom: MARGIN, left: MARGIN },
+          },
+        },
+        children: sections,
+      },
+    ],
+  });
+
+  return await Packer.toBuffer(doc);
+}
+
+module.exports = { generateDOCX, generateCoverLetterDOCX };

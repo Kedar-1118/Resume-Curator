@@ -38,8 +38,12 @@ const MONGODB_URI =
 
 mongoose
   .connect(MONGODB_URI)
-  .then(() => {
+  .then(async () => {
     console.log('✅ MongoDB connected successfully');
+
+    // Pre-launch Puppeteer browser for PDF exports
+    const { warmup } = require('./services/pdfExport');
+    warmup().catch((err) => console.warn('⚠️ Puppeteer warmup failed:', err.message));
 
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {

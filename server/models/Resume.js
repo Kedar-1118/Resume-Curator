@@ -83,6 +83,63 @@ const resumeSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // ─── JD Intelligence (Feature 3) ─────────────────────────
+    parsedJD: {
+      company: { type: String, default: '' },
+      roleTitle: { type: String, default: '' },
+      level: {
+        type: String,
+        enum: ['intern', 'junior', 'mid', 'senior', 'lead', 'executive', ''],
+        default: '',
+      },
+      industry: { type: String, default: '' },
+      mustHaveSkills: [{ type: String }],
+      niceToHaveSkills: [{ type: String }],
+      parsedAt: { type: Date, default: null },
+    },
+    // ─── Version History (Feature 4) ─────────────────────────
+    versions: [
+      {
+        savedAt: { type: Date, default: Date.now },
+        snapshot: { type: Object },
+      },
+    ],
+    // ─── Cover Letter (Feature 5) ────────────────────────────
+    coverLetter: {
+      salutation: { type: String, default: '' },
+      opening: { type: String, default: '' },
+      bodyParagraphs: [{ type: String }],
+      closing: { type: String, default: '' },
+      subject: { type: String, default: '' },
+      generatedAt: { type: Date, default: null },
+    },
+    // ─── Multi-JD Targeting (Feature 6) ──────────────────────
+    jdTargets: [
+      {
+        label: { type: String, default: '' },
+        jdText: { type: String, default: '' },
+        parsedJD: { type: Object },
+        atsScore: { type: Number, default: null },
+        scoredAt: { type: Date, default: null },
+      },
+    ],
+    // ─── ATS Score History (Improvement C) ────────────────────
+    atsScores: [
+      {
+        score: { type: Number },
+        breakdown: {
+          keywords: Number,
+          actionVerbs: Number,
+          quantification: Number,
+          formatting: Number,
+          sections: Number,
+          contactInfo: Number,
+          summaryRelevance: Number,
+          readability: Number,
+        },
+        scoredAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   {
     timestamps: true,

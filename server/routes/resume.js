@@ -112,16 +112,40 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     // Prevent userId from being changed
-    const { userId, ...updateData } = req.body;
+    const { userId, versions: _v, ...updateData } = req.body;
 
+    // Load current document for version snapshot + JD diff check
+    const current = await Resume.findOne({ _id: req.params.id, userId: req.user.id });
+    if (!current) {
+      return res.status(404).json({ error: 'Resume not found' });
+    }
+
+    // ── Version History: push current state as snapshot (cap at 10) ──
+    const snapshot = current.toObject();
+    delete snapshot.versions;
+    delete snapshot.__v;
+
+    const versionEntry = { savedAt: new Date(), snapshot };
+    let versionsPush = { $push: { versions: { $each: [versionEntry], $slice: -10 } } };
+
+    // ── Apply update + push version in one operation ──
     const resume = await Resume.findOneAndUpdate(
       { _id: req.params.id, userId: req.user.id },
-      updateData,
+      { ...updateData, ...versionsPush },
       { new: true, runValidators: true }
     );
 
-    if (!resume) {
-      return res.status(404).json({ error: 'Resume not found' });
+    // ── JD Intelligence: async parse if targetJD changed ──
+    if (updateData.targetJD && updateData.targetJD !== current.targetJD) {
+      // Fire-and-forget: parse the JD in the background
+      gemini
+        .parseJD(updateData.targetJD)
+        .then((parsed) => {
+          Resume.findByIdAndUpdate(req.params.id, {
+            parsedJD: { ...parsed, parsedAt: new Date() },
+          }).catch((err) => console.error('Background JD parse save error:', err.message));
+        })
+        .catch((err) => console.error('Background JD parse error:', err.message));
     }
 
     res.json(resume);
@@ -171,6 +195,111 @@ router.post('/:id/duplicate', async (req, res) => {
     res.status(201).json(duplicate);
   } catch (err) {
     res.status(500).json({ error: 'Failed to duplicate resume' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Version History Routes (Feature 4)
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/resume/:id/versions — List version timestamps
+router.get('/:id/versions', async (req, res) => {
+  try {
+    const resume = await Resume.findOne(
+      { _id: req.params.id, userId: req.user.id },
+      { versions: 1 }
+    );
+    if (!resume) return res.status(404).json({ error: 'Resume not found' });
+
+    const list = (resume.versions || []).map((v, idx) => ({
+      versionIndex: idx,
+      savedAt: v.savedAt,
+    }));
+
+    res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch versions' });
+  }
+});
+
+// GET /api/resume/:id/versions/:index — Get a specific version snapshot
+router.get('/:id/versions/:index', async (req, res) => {
+  try {
+    const resume = await Resume.findOne(
+      { _id: req.params.id, userId: req.user.id },
+      { versions: 1 }
+    );
+    if (!resume) return res.status(404).json({ error: 'Resume not found' });
+
+    const idx = parseInt(req.params.index, 10);
+    const version = resume.versions?.[idx];
+    if (!version) return res.status(404).json({ error: 'Version not found' });
+
+    res.json(version);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch version' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// JD Target Routes (Feature 6)
+// ═══════════════════════════════════════════════════════════════
+
+// POST /api/resume/:id/jd-targets — Add a JD target
+router.post('/:id/jd-targets', async (req, res) => {
+  try {
+    const { label, jdText } = req.body;
+    if (!label || !jdText) {
+      return res.status(400).json({ error: 'label and jdText are required' });
+    }
+
+    const resume = await Resume.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user.id },
+      {
+        $push: {
+          jdTargets: { label, jdText, atsScore: null, scoredAt: null },
+        },
+      },
+      { new: true }
+    );
+
+    if (!resume) return res.status(404).json({ error: 'Resume not found' });
+
+    // Async JD parse for the new target
+    const targetIndex = resume.jdTargets.length - 1;
+    gemini
+      .parseJD(jdText)
+      .then((parsed) => {
+        Resume.findOneAndUpdate(
+          { _id: req.params.id },
+          { $set: { [`jdTargets.${targetIndex}.parsedJD`]: parsed } }
+        ).catch((err) => console.error('JD target parse save error:', err.message));
+      })
+      .catch((err) => console.error('JD target parse error:', err.message));
+
+    res.status(201).json(resume.jdTargets);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add JD target' });
+  }
+});
+
+// DELETE /api/resume/:id/jd-targets/:targetIndex — Remove a JD target
+router.delete('/:id/jd-targets/:targetIndex', async (req, res) => {
+  try {
+    const resume = await Resume.findOne({ _id: req.params.id, userId: req.user.id });
+    if (!resume) return res.status(404).json({ error: 'Resume not found' });
+
+    const idx = parseInt(req.params.targetIndex, 10);
+    if (idx < 0 || idx >= (resume.jdTargets || []).length) {
+      return res.status(404).json({ error: 'JD target not found' });
+    }
+
+    resume.jdTargets.splice(idx, 1);
+    await resume.save();
+
+    res.json(resume.jdTargets);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to remove JD target' });
   }
 });
 

@@ -20,6 +20,28 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // ─── GitHub Integration (Feature 1) ─────────────────────
+    githubId: {
+      type: String,
+      default: null,
+    },
+    githubAccessToken: {
+      type: String,
+      default: null,
+    },
+    githubUsername: {
+      type: String,
+      default: null,
+    },
+    githubConnectedAt: {
+      type: Date,
+      default: null,
+    },
+    githubIngestionStatus: {
+      type: String,
+      enum: ['idle', 'running', 'done', 'error'],
+      default: 'idle',
+    },
   },
   {
     timestamps: true, // adds createdAt and updatedAt

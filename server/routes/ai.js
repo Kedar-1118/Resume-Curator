@@ -103,20 +103,27 @@ router.post('/score', async (req, res) => {
     const priorityKeywords = resume.parsedJD?.mustHaveSkills || [];
     const result = await gemini.scoreATS(text, resume.targetJD, priorityKeywords);
 
-    // Update resume in DB with scores
+    // Update resume in DB with scores + push to history
+    const breakdownScores = {
+      keywords: result.breakdown.keywords?.score,
+      actionVerbs: result.breakdown.actionVerbs?.score,
+      quantification: result.breakdown.quantification?.score,
+      formatting: result.breakdown.formatting?.score,
+      sections: result.breakdown.sections?.score,
+      contactInfo: result.breakdown.contactInfo?.score,
+      summaryRelevance: result.breakdown.summaryRelevance?.score,
+      readability: result.breakdown.readability?.score,
+    };
     await Resume.findByIdAndUpdate(resumeId, {
       atsScore: result.totalScore,
-      atsBreakdown: {
-        keywords: result.breakdown.keywords?.score,
-        actionVerbs: result.breakdown.actionVerbs?.score,
-        quantification: result.breakdown.quantification?.score,
-        formatting: result.breakdown.formatting?.score,
-        sections: result.breakdown.sections?.score,
-        contactInfo: result.breakdown.contactInfo?.score,
-        summaryRelevance: result.breakdown.summaryRelevance?.score,
-        readability: result.breakdown.readability?.score,
-      },
+      atsBreakdown: breakdownScores,
       lastAnalyzed: new Date(),
+      $push: {
+        atsScores: {
+          $each: [{ score: result.totalScore, breakdown: breakdownScores, scoredAt: new Date() }],
+          $slice: -20,
+        },
+      },
     });
 
     res.json(result);
@@ -272,6 +279,77 @@ router.post('/score-upload', upload.single('resume'), async (req, res) => {
       return res.status(400).json({ error: err.message });
     }
     res.status(500).json({ error: err.message || 'Failed to score resume' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// POST /api/ai/score-multi — Score resume against all JD targets (Feature 6)
+// ═══════════════════════════════════════════════════════════════
+router.post('/score-multi', async (req, res) => {
+  try {
+    const { resumeId } = req.body;
+    if (!resumeId) return res.status(400).json({ error: 'resumeId is required' });
+
+    const resume = await Resume.findOne({ _id: resumeId, userId: req.user.id });
+    if (!resume) return res.status(404).json({ error: 'Resume not found' });
+    if (!resume.jdTargets?.length) return res.status(400).json({ error: 'No JD targets set' });
+
+    const text = resumeToText(resume);
+
+    // Score all JD targets concurrently
+    const results = await Promise.all(
+      resume.jdTargets.map(async (target, idx) => {
+        try {
+          const result = await gemini.scoreATS(text, target.jdText);
+          // Update this target's score in DB
+          await Resume.findOneAndUpdate(
+            { _id: resumeId },
+            {
+              $set: {
+                [`jdTargets.${idx}.atsScore`]: result.totalScore,
+                [`jdTargets.${idx}.scoredAt`]: new Date(),
+              },
+            }
+          );
+          return { label: target.label, atsScore: result.totalScore, scoredAt: new Date() };
+        } catch (err) {
+          return { label: target.label, atsScore: null, error: err.message };
+        }
+      })
+    );
+
+    res.json(results);
+  } catch (err) {
+    console.error('AI Score Multi error:', err.message);
+    res.status(500).json({ error: err.message || 'Failed to score against multiple JDs' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// POST /api/ai/cover-letter — Generate structured cover letter (Feature 5)
+// ═══════════════════════════════════════════════════════════════
+router.post('/cover-letter', async (req, res) => {
+  try {
+    const { resumeId } = req.body;
+    if (!resumeId) return res.status(400).json({ error: 'resumeId is required' });
+
+    const resume = await Resume.findOne({ _id: resumeId, userId: req.user.id });
+    if (!resume) return res.status(404).json({ error: 'Resume not found' });
+    if (!resume.targetJD) return res.status(400).json({ error: 'No job description set — paste a JD first' });
+
+    const resumeJSON = resume.toObject();
+    const parsedJD = resume.parsedJD || {};
+    const result = await gemini.generateCoverLetter(resumeJSON, parsedJD);
+
+    // Save to resume document
+    await Resume.findByIdAndUpdate(resumeId, {
+      coverLetter: { ...result, generatedAt: new Date() },
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error('AI Cover Letter error:', err.message);
+    res.status(500).json({ error: err.message || 'Failed to generate cover letter' });
   }
 });
 

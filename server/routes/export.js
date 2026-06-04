@@ -2,7 +2,7 @@ const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const Resume = require('../models/Resume');
 const { generatePDF } = require('../services/pdfExport');
-const { generateDOCX } = require('../services/docxExport');
+const { generateDOCX, generateCoverLetterDOCX } = require('../services/docxExport');
 
 const router = express.Router();
 
@@ -62,6 +62,34 @@ router.post('/docx', async (req, res) => {
   } catch (err) {
     console.error('DOCX export error:', err.message);
     res.status(500).json({ error: err.message || 'Failed to generate DOCX' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// GET /api/export/:id/cover-letter/docx — Cover letter DOCX (Feature 5)
+// ═══════════════════════════════════════════════════════════════
+router.get('/:id/cover-letter/docx', async (req, res) => {
+  try {
+    const resume = await Resume.findOne({ _id: req.params.id, userId: req.user.id });
+    if (!resume) return res.status(404).json({ error: 'Resume not found' });
+    if (!resume.coverLetter?.opening) {
+      return res.status(400).json({ error: 'No cover letter generated yet' });
+    }
+
+    const docxBuffer = await generateCoverLetterDOCX(resume.coverLetter, resume.personal);
+
+    const filename = `${(resume.title || 'cover-letter').replace(/[^a-zA-Z0-9\s-]/g, '').trim()} - Cover Letter.docx`;
+
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': docxBuffer.length,
+    });
+
+    res.send(docxBuffer);
+  } catch (err) {
+    console.error('Cover letter DOCX export error:', err.message);
+    res.status(500).json({ error: err.message || 'Failed to generate cover letter DOCX' });
   }
 });
 

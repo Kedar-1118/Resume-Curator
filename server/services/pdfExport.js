@@ -1,5 +1,47 @@
 const puppeteer = require('puppeteer');
 
+// ─── Persistent Puppeteer Browser Singleton ──────────────────
+let browserInstance = null;
+
+async function getBrowser() {
+  if (!browserInstance || !browserInstance.isConnected()) {
+    browserInstance = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+    console.log('[PDF] Puppeteer browser launched');
+  }
+  return browserInstance;
+}
+
+// Keep-alive: ping every 4 minutes to prevent idle timeout
+setInterval(async () => {
+  try {
+    if (browserInstance?.isConnected()) {
+      await browserInstance.pages(); // no-op connectivity check
+    }
+  } catch {
+    // Ignore — browser will be re-launched on next request
+  }
+}, 4 * 60 * 1000);
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  if (browserInstance) {
+    console.log('[PDF] Closing Puppeteer browser on SIGTERM');
+    await browserInstance.close();
+  }
+});
+
+/**
+ * Pre-launch the Puppeteer browser instance.
+ * Call on server start to avoid cold-start latency on first PDF export.
+ */
+async function warmup() {
+  await getBrowser();
+  console.log('[PDF] Browser warmed up and ready');
+}
+
 /**
  * Generate a PDF buffer from resume data using a specific template.
  * The HTML is fully self-contained with inline CSS — no external resources.
@@ -14,12 +56,9 @@ async function generatePDF(resumeData, template = 'modern') {
   const buildHTML = builders[template] || builders.modern;
   const html = buildHTML(resumeData);
 
-  let browser;
+  const browser = await getBrowser();
+  const page = await browser.newPage();
   try {
-    browser = await puppeteer.launch({
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-    const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'networkidle0' });
     const pdfBuffer = await page.pdf({
       format: 'A4',
@@ -28,7 +67,7 @@ async function generatePDF(resumeData, template = 'modern') {
     });
     return pdfBuffer;
   } finally {
-    if (browser) await browser.close();
+    await page.close();
   }
 }
 
@@ -486,4 +525,4 @@ ${bodyContent}
 </html>`;
 }
 
-module.exports = { generatePDF };
+module.exports = { generatePDF, warmup };

@@ -219,14 +219,16 @@ router.post('/parse-resume', upload.single('resume'), async (req, res) => {
     }
 
     // 1. Extract raw text from file
-    const rawText = await extractText(req.file.buffer, req.file.mimetype);
+    const { text: rawText, sourceFormat } = await extractText(req.file.buffer, req.file.mimetype);
 
     if (!rawText || rawText.length < 50) {
       return res.status(400).json({ error: 'Could not extract enough text from the file. Please ensure it is a valid resume.' });
     }
 
     // 2. Use Gemini to parse raw text into structured resume JSON
-    const parsed = await gemini.parseResume(rawText);
+    // Allow client to force LinkedIn format via form field hint
+    const format = req.body.hint === 'linkedin' ? 'linkedin' : sourceFormat;
+    const parsed = await gemini.parseResume(rawText, format);
 
     res.json(parsed);
   } catch (err) {
@@ -249,7 +251,7 @@ router.post('/score-upload', upload.single('resume'), async (req, res) => {
     }
 
     // 1. Extract raw text from file
-    const rawText = await extractText(req.file.buffer, req.file.mimetype);
+    const { text: rawText } = await extractText(req.file.buffer, req.file.mimetype);
 
     if (!rawText || rawText.length < 50) {
       return res.status(400).json({ error: 'Could not extract enough text from the file. Please ensure it is a valid resume.' });

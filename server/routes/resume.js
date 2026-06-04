@@ -38,14 +38,14 @@ router.post('/upload', upload.single('resume'), async (req, res) => {
     }
 
     // 1. Extract raw text from file
-    const rawText = await extractText(req.file.buffer, req.file.mimetype);
+    const { text: rawText, sourceFormat } = await extractText(req.file.buffer, req.file.mimetype);
 
     if (!rawText || rawText.length < 50) {
       return res.status(400).json({ error: 'Could not extract enough text from the file. Please ensure it is a valid resume.' });
     }
 
     // 2. Use Gemini to parse raw text into structured resume JSON
-    const parsed = await gemini.parseResume(rawText);
+    const parsed = await gemini.parseResume(rawText, sourceFormat);
 
     // 3. Create resume in DB with parsed data
     const resume = await Resume.create({

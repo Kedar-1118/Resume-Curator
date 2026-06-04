@@ -11,7 +11,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-
+ProjectsResume Curator
+prompt.md
 node_modules
 dist
 dist-ssr

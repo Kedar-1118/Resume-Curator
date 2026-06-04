@@ -3,7 +3,7 @@ const multer = require('multer');
 const Resume = require('../models/Resume');
 const authMiddleware = require('../middleware/auth');
 const { extractText } = require('../services/fileParser');
-const { callGemini } = require('../services/gemini');
+const gemini = require('../services/gemini');
 
 const router = express.Router();
 
@@ -45,32 +45,7 @@ router.post('/upload', upload.single('resume'), async (req, res) => {
     }
 
     // 2. Use Gemini to parse raw text into structured resume JSON
-    const systemPrompt = `You are an expert resume parser. Extract all information from this raw resume text into a structured JSON format. Be thorough — extract every detail including all bullet points, dates, and contact information. If a field is not found, use an empty string or empty array. Return ONLY valid JSON, no markdown, no explanation:
-{
-  "title": "string (create a short title like 'Software Engineer Resume')",
-  "personal": {
-    "name": "string", "email": "string", "phone": "string",
-    "location": "string", "linkedin": "string", "github": "string", "website": "string"
-  },
-  "summary": "string (the professional summary/objective if present)",
-  "experience": [{
-    "title": "string", "company": "string", "location": "string",
-    "startDate": "string", "endDate": "string", "current": false,
-    "bullets": ["string"]
-  }],
-  "education": [{
-    "degree": "string", "school": "string", "location": "string",
-    "year": "string", "gpa": "string"
-  }],
-  "projects": [{
-    "name": "string", "description": "string", "technologies": "string",
-    "link": "string", "bullets": ["string"]
-  }],
-  "skills": ["string"],
-  "certifications": ["string"]
-}`;
-
-    const parsed = await callGemini(systemPrompt, `RAW RESUME TEXT:\n${rawText}`);
+    const parsed = await gemini.parseResume(rawText);
 
     // 3. Create resume in DB with parsed data
     const resume = await Resume.create({

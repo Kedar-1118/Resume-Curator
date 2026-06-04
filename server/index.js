@@ -26,6 +26,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/resume', require('./routes/resume'));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api/export', require('./routes/export'));
+app.use('/api/github', require('./routes/github'));
 
 // Health check
 app.get('/api/health', (req, res) => {

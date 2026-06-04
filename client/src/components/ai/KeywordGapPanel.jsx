@@ -36,6 +36,10 @@ export default function KeywordGapPanel({ result, loading }) {
     );
   }
 
+  // Support both old schema (missing) and new schema (missingMustHave + missingNiceToHave)
+  const missingMustHave = result.missingMustHave || result.missing || [];
+  const missingNiceToHave = result.missingNiceToHave || [];
+
   return (
     <div className="space-y-5">
       {/* Matched Keywords */}
@@ -64,19 +68,19 @@ export default function KeywordGapPanel({ result, loading }) {
         </div>
       </div>
 
-      {/* Missing Keywords */}
+      {/* Missing Must-Have Keywords */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Missing Keywords
+            Missing — Must-Have
           </h4>
           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400">
-            {result.missing?.length || 0}
+            {missingMustHave.length}
           </span>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {result.missing?.length > 0 ? (
-            result.missing.map((kw, i) => (
+          {missingMustHave.length > 0 ? (
+            missingMustHave.map((kw, i) => (
               <Badge
                 key={i}
                 onClick={() => copyKeyword(kw)}
@@ -87,13 +91,39 @@ export default function KeywordGapPanel({ result, loading }) {
               </Badge>
             ))
           ) : (
-            <span className="text-xs text-slate-600">No missing keywords — great!</span>
+            <span className="text-xs text-slate-600">No missing must-have keywords — great!</span>
           )}
         </div>
-        {result.missing?.length > 0 && (
+        {missingMustHave.length > 0 && (
           <p className="text-[10px] text-slate-600">Click a keyword to copy it to clipboard</p>
         )}
       </div>
+
+      {/* Missing Nice-to-Have Keywords */}
+      {missingNiceToHave.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              Missing — Nice-to-Have
+            </h4>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400">
+              {missingNiceToHave.length}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {missingNiceToHave.map((kw, i) => (
+              <Badge
+                key={i}
+                onClick={() => copyKeyword(kw)}
+                className="bg-amber-500/15 text-amber-400 border-amber-500/20 text-[11px] font-normal cursor-pointer hover:bg-amber-500/25 transition-colors"
+                title="Click to copy"
+              >
+                ○ {kw}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Suggestions */}
       {result.suggested?.length > 0 && (

@@ -1,8 +1,10 @@
 const express = require('express');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const GitHubStrategy = require('passport-github2').Strategy;
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const RepoChunk = require('../models/RepoChunk');
 const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
@@ -37,6 +39,30 @@ passport.use(
   )
 );
 
+// ─── Passport GitHub OAuth Strategy (Feature 1) ──────────────
+if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
+  passport.use(
+    new GitHubStrategy(
+      {
+        clientID: process.env.GITHUB_CLIENT_ID,
+        clientSecret: process.env.GITHUB_CLIENT_SECRET,
+        callbackURL: process.env.GITHUB_CALLBACK_URL || 'http://localhost:5000/api/auth/github/callback',
+        scope: ['user:email', 'public_repo', 'read:user'],
+      },
+      async (accessToken, refreshToken, profile, done) => {
+        try {
+          // This strategy is only for linking GitHub to an existing user.
+          // The user must already be authenticated via Google OAuth.
+          // We pass the GitHub profile + token through to the callback handler.
+          done(null, { githubProfile: profile, githubAccessToken: accessToken });
+        } catch (err) {
+          done(err, null);
+        }
+      }
+    )
+  );
+}
+
 // Passport serialize/deserialize (needed for strategy but we use JWT, not sessions)
 passport.serializeUser((user, done) => done(null, user.id));
 passport.deserializeUser(async (id, done) => {
@@ -48,7 +74,9 @@ passport.deserializeUser(async (id, done) => {
   }
 });
 
-// ─── Routes ──────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// Google OAuth Routes
+// ═══════════════════════════════════════════════════════════════
 
 // GET /api/auth/google → Redirect to Google OAuth consent screen
 router.get(
@@ -93,10 +121,82 @@ router.get(
   }
 );
 
+// ═══════════════════════════════════════════════════════════════
+// GitHub OAuth Routes (Feature 1)
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/auth/github → Initiate GitHub OAuth (user must be logged in)
+router.get('/github', authMiddleware, (req, res, next) => {
+  // Store the user's JWT ID in the session state so callback can find the user
+  passport.authenticate('github', {
+    session: false,
+    state: req.user.id, // Pass user ID through OAuth state parameter
+  })(req, res, next);
+});
+
+// GET /api/auth/github/callback → Handle GitHub OAuth callback
+router.get(
+  '/github/callback',
+  passport.authenticate('github', {
+    session: false,
+    failureRedirect: process.env.CLIENT_URL || 'http://localhost:5173',
+  }),
+  async (req, res) => {
+    try {
+      const { githubProfile, githubAccessToken } = req.user;
+      const userId = req.query.state; // Retrieve from OAuth state
+
+      if (!userId) {
+        const clientURL = process.env.CLIENT_URL || 'http://localhost:5173';
+        return res.redirect(`${clientURL}/dashboard?github=error`);
+      }
+
+      // Update user with GitHub info
+      await User.findByIdAndUpdate(userId, {
+        githubId: githubProfile.id,
+        githubAccessToken: githubAccessToken,
+        githubUsername: githubProfile.username,
+        githubConnectedAt: new Date(),
+        githubIngestionStatus: 'idle',
+      });
+
+      const clientURL = process.env.CLIENT_URL || 'http://localhost:5173';
+      res.redirect(`${clientURL}/dashboard?github=connected`);
+    } catch (err) {
+      console.error('GitHub callback error:', err.message);
+      const clientURL = process.env.CLIENT_URL || 'http://localhost:5173';
+      res.redirect(`${clientURL}/dashboard?github=error`);
+    }
+  }
+);
+
+// DELETE /api/auth/github/disconnect → Remove GitHub connection
+router.delete('/github/disconnect', authMiddleware, async (req, res) => {
+  try {
+    // Clear GitHub fields on user
+    await User.findByIdAndUpdate(req.user.id, {
+      $unset: { githubId: 1, githubAccessToken: 1, githubUsername: 1, githubConnectedAt: 1 },
+      githubIngestionStatus: 'idle',
+    });
+
+    // Delete all stored repo embeddings for this user
+    await RepoChunk.deleteMany({ userId: req.user.id });
+
+    res.json({ message: 'GitHub disconnected successfully' });
+  } catch (err) {
+    console.error('GitHub disconnect error:', err.message);
+    res.status(500).json({ error: 'Failed to disconnect GitHub' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Common Auth Routes
+// ═══════════════════════════════════════════════════════════════
+
 // GET /api/auth/me → Return current user (protected)
 router.get('/me', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-__v');
+    const user = await User.findById(req.user.id).select('-__v -githubAccessToken');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
